@@ -1,0 +1,116 @@
+= Mini Keyboard Configurator - Solution Design
+:toc:
+:toclevels: 3
+
+== Overview
+
+Cross-platform configuration tool for CH552/CH57x-based programmable macro keyboards.
+
+== Goals
+
+* Provide a safe, open-source alternative to untrusted vendor software
+* Support Windows and Linux
+* Simple CLI for scripting and automation
+* Future: Web-based admin interface
+* Future: Bluetooth bridge support via Raspberry Pi
+
+== Architecture
+
+[source]
+----
+┌─────────────────────────────────────────────────────────────┐
+│                      User Interface                          │
+├─────────────────┬─────────────────┬─────────────────────────┤
+│   Python CLI    │   Web UI (TBD)  │   C# GUI (Windows)      │
+├─────────────────┴─────────────────┴─────────────────────────┤
+│                    Core Library                              │
+├─────────────────────────────────────────────────────────────┤
+│                    HID Protocol Layer                        │
+├─────────────────────────────────────────────────────────────┤
+│         hidapi (Python)    │    HidLibrary (.NET)           │
+├─────────────────────────────────────────────────────────────┤
+│                    USB HID Device                            │
+└─────────────────────────────────────────────────────────────┘
+----
+
+== Components
+
+=== Python CLI (`/python`)
+
+* `minikeyboard.py` - Main CLI tool
+* Cross-platform via `hidapi` library
+* Commands: `list`, `set`, `led`
+
+=== C# GUI (`/MiniKeyboard48`, `/HidLibrary48`)
+
+* Windows Forms application
+* Requires .NET Framework 4.8
+* Visual key layout with click-to-configure
+
+=== Web UI (Planned)
+
+* Flask-based web server
+* Accessible from any device on network
+* Foundation for Bluetooth Pi bridge
+
+== Supported Devices
+
+[cols="1,1,1,2"]
+|===
+|Vendor ID |Product ID |Status |Notes
+
+|0x1189
+|0x8890
+|Supported
+|Most common variant
+
+|0x1189
+|0x8840
+|In Progress
+|Different protocol, under investigation
+|===
+
+== HID Protocol
+
+See link:PROTOCOL.md[PROTOCOL.md] for detailed protocol documentation.
+
+=== Key Configuration Flow
+
+1. Open device (interface 0, usage page 0xFF00)
+2. Detect report ID (try 3, 0, 2)
+3. Send layer switch command (0xA1)
+4. Send key configuration packets
+5. Send flash command (0xAA)
+
+== Future Enhancements
+
+=== Web Admin Interface
+
+* Visual keyboard layout
+* Drag-and-drop key assignment
+* Profile save/load
+* Real-time preview
+
+=== Bluetooth Bridge
+
+* Raspberry Pi Zero W as USB-to-Bluetooth bridge
+* Configure keyboard wirelessly
+* Make wired keyboard wireless
+
+== File Structure
+
+[source]
+----
+MiniKeyboard/
+├── docs/
+│   ├── PROTOCOL.md
+│   ├── SOLUTION_DESIGN.adoc
+│   └── TROUBLESHOOTING.adoc
+├── python/
+│   ├── minikeyboard.py
+│   ├── requirements.txt
+│   └── README.md
+├── MiniKeyboard48/          # C# GUI
+├── HidLibrary48/            # C# HID library
+└── readme.md
+----

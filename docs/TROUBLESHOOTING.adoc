@@ -1,0 +1,143 @@
+= Mini Keyboard Configurator - Troubleshooting
+:toc:
+
+== Common Problems and Solutions
+
+[cols="2,3"]
+|===
+|Problem |Solution
+
+|"No mini keyboard devices found"
+|Ensure keyboard is plugged in. Check `python minikeyboard.py list` output. On Linux, add udev rule or run as root.
+
+|"Permission denied" on Linux
+|Add udev rule: `echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1189", MODE="0666"' \| sudo tee /etc/udev/rules.d/99-minikeyboard.rules` then `sudo udevadm control --reload-rules && sudo udevadm trigger`
+
+|"Could not connect to keyboard"
+|Try unplugging and replugging the keyboard. Ensure no other software is using the device.
+
+|Key configuration not applied (PID 0x8840)
+|This keyboard variant uses a completely different protocol than 0x8890. HID writes are accepted but ignored. USB traffic capture from working software is needed to reverse engineer the protocol. Options: (1) Install original software in a VM and capture with Wireshark+USBPcap, (2) Use original vendor software as workaround.
+
+|Key configuration not applied (PID 0x8890)
+|Ensure you're sending both configuration packets (index 0 and index 1) followed by the flash command (0xAA).
+
+|Wrong key is configured
+|Physical key numbers are 1-indexed. Key 1 is top-left, keys 13-15 are knob 1 actions.
+
+|Media keys not working
+|Media keycodes differ by firmware version. Try different report IDs (0, 2, 3).
+
+|LED mode not changing
+|LED uses special key number 0xB0 (176) and key type 8. Flash command for LED is `[0xAA, 0xA1, ...]`.
+
+|hidapi installation fails on Linux
+|Install system dependencies: `sudo apt install libhidapi-hidraw0 libhidapi-libusb0 python3-dev`
+
+|"TypeError: a bytes-like object is required"
+|Update to latest version of minikeyboard.py - path handling was fixed.
+
+|Python not found after installation
+|On Windows, ensure Python was added to PATH during installation, or use full path: `C:\Users\<user>\AppData\Local\Programs\Python\Python312\python.exe`
+|===
+
+== Debug Commands
+
+List all HID devices to find your keyboard:
+
+[source,python]
+----
+python -c "import hid; [print(f'{d[\"vendor_id\"]:04x}:{d[\"product_id\"]:04x} - {d.get(\"product_string\", \"\")}') for d in hid.enumerate()]"
+----
+
+Test device connectivity:
+
+[source,bash]
+----
+python minikeyboard.py list
+----
+
+Probe all HID interfaces (shows which report IDs work):
+
+[source,bash]
+----
+python minikeyboard.py debug
+----
+
+Test initialization sequences for PID 0x8840:
+
+[source,bash]
+----
+python minikeyboard.py debug-init
+----
+
+Try setting key1 to 'A' with various protocols:
+
+[source,bash]
+----
+python minikeyboard.py debug-set
+----
+
+Monitor HID traffic from keyboard (10 seconds):
+
+[source,bash]
+----
+python minikeyboard.py monitor --time 10
+----
+
+== PID 0x8840 Investigation Status
+
+The PID 0x8840 keyboard variant has different firmware that doesn't respond to the standard protocol. Current findings:
+
+[cols="2,3"]
+|===
+|Test |Result
+
+|Device detection
+|✅ Works - VID 0x1189, PID 0x8840 detected
+
+|Interface enumeration
+|✅ 5 interfaces found (MI_00 usage 0xFF00, MI_01 keyboard/mouse/consumer)
+
+|HID writes
+|✅ Accepted - 65 bytes written successfully with report ID 3
+
+|Configuration applied
+|❌ Keyboard ignores all configuration packets
+
+|Device response
+|❌ Never responds to any command
+
+|Feature reports
+|✅ Accepted but no effect
+|===
+
+=== What We've Tried
+
+* Different report IDs (0, 2, 3)
+* Single packet and two-packet protocols
+* Layer switch prefix commands (0xA1)
+* Various initialization sequences (0xA0, 0xA2, 0xAA, 0xB0, 0xFF)
+* Feature reports instead of output reports
+* Different byte orders and packet structures
+* 64-byte packets
+
+=== Next Steps
+
+To support PID 0x8840, USB traffic capture is needed:
+
+1. Install Wireshark with USBPcap
+2. Capture traffic while using vendor software
+3. Filter by `usb.idVendor == 0x1189`
+4. Analyze packet structure
+
+See link:SECURITY_ANALYSIS.md[Security Analysis] for assessment of vendor software safety.
+
+== Getting Help
+
+If your problem isn't listed above:
+
+1. Check the GitHub issues
+2. Run with verbose output (if available)
+3. Note your keyboard's VID:PID from `minikeyboard.py list`
+4. Open a new issue with device info and error messages
